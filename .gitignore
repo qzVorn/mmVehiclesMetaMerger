@@ -81,3 +81,7 @@ app-macos
 output/*.meta
 output/*.txt
 errors.txt
+
+# build output
+dist/
+dist-cli/
