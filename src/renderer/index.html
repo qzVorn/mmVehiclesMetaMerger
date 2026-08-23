@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;" />
+<title>mmVehiclesMetaMerger</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- ===================== SVG icon sprite ===================== -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-car" viewBox="0 0 24 24"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></symbol>
+    <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.93 0 1.65-.75 1.65-1.69 0-.44-.18-.83-.44-1.12a1.6 1.6 0 0 1-.44-1.13 1.64 1.64 0 0 1 1.67-1.67h2A5.55 5.55 0 0 0 22 10.83C21.96 6.01 17.46 2 12 2Z"/><circle class="dot" cx="13.5" cy="6.5" r="1"/><circle class="dot" cx="17.5" cy="10.5" r="1"/><circle class="dot" cx="8.5" cy="7.5" r="1"/><circle class="dot" cx="6.5" cy="12.5" r="1"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12.8 2.2a2 2 0 0 0-1.6 0L2.6 6.1a1 1 0 0 0 0 1.8l8.6 3.9a2 2 0 0 0 1.6 0l8.6-3.9a1 1 0 0 0 0-1.8Z"/><path d="m22 12.2-9.2 4.2a2 2 0 0 1-1.6 0L2 12.2"/><path d="m22 17.2-9.2 4.2a2 2 0 0 1-1.6 0L2 17.2"/></symbol>
+    <symbol id="i-gauge" viewBox="0 0 24 24"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/><circle class="dot" cx="12" cy="14" r="1.2"/></symbol>
+    <symbol id="i-seat" viewBox="0 0 24 24"><path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3"/><path d="M3 11v5a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v2H7v-2a2 2 0 0 0-4 0Z"/><path d="M5 18v2"/><path d="M19 18v2"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+    <symbol id="i-merge" viewBox="0 0 24 24"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-siren" viewBox="0 0 24 24"><path d="M7 18v-6a5 5 0 0 1 10 0v6"/><path d="M5 21a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v1z"/><path d="M21 12h1"/><path d="m18.5 4.5-.7.7"/><path d="M2 12h1"/><path d="M12 2v1"/><path d="m4.9 4.9.7.7"/></symbol>
+    <symbol id="i-tag" viewBox="0 0 24 24"><path d="M12.59 2.59A2 2 0 0 0 11.17 2H4a2 2 0 0 0-2 2v7.17a2 2 0 0 0 .59 1.42l8.7 8.7a2.43 2.43 0 0 0 3.42 0l6.58-6.58a2.43 2.43 0 0 0 0-3.42z"/><circle class="dot" cx="7.5" cy="7.5" r="1.1"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></symbol>
+    <symbol id="i-broom" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6"/><path d="M14 11v6"/></symbol>
+    <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/></symbol>
+    <symbol id="i-open" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+    <symbol id="i-min" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+    <symbol id="i-max" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3.5-7.1"/><path d="M21 3v6h-6"/></symbol>
+  </defs>
+</svg>
+
+<div class="ambient" aria-hidden="true">
+  <span class="glow glow-a"></span>
+  <span class="glow glow-b"></span>
+  <span class="grid-overlay"></span>
+</div>
+
+<!-- ===================== Title bar ===================== -->
+<header class="titlebar">
+  <div class="brand">
+    <div class="brand-badge">
+      <svg viewBox="0 0 48 48" class="badge-art" aria-hidden="true">
+        <circle cx="24" cy="24" r="22" class="badge-ring"/>
+        <circle cx="24" cy="24" r="17.5" class="badge-ring-2"/>
+        <path d="M24 12 14 16v8c0 6 4.2 11.2 10 12.5C29.8 35.2 34 30 34 24v-8l-10-4Z" class="badge-shield"/>
+        <path d="M18.5 24.5h11M20 21.5h8M21.5 27.5h5" class="badge-lines"/>
+      </svg>
+    </div>
+    <div class="brand-text">
+      <span class="brand-kicker">mmVehicles</span>
+      <span class="brand-name">Meta Merger</span>
+    </div>
+  </div>
+
+  <div class="pathbar" id="pathbar">
+    <svg class="ic ic-16"><use href="#i-search"/></svg>
+    <input id="sourcePath" type="text" spellcheck="false" placeholder="Source directory to scan for .meta files..." />
+    <button class="pathbar-btn" id="browseTop" type="button">Browse</button>
+  </div>
+
+  <div class="titlebar-right">
+    <div class="status-pill" id="statusPill" data-state="ready">
+      <span class="status-dot"></span>
+      <span class="status-text">READY</span>
+    </div>
+
+    <button class="icon-btn" id="btnClearTop" type="button" title="Clear staged files">
+      <svg class="ic ic-18"><use href="#i-broom"/></svg>
+    </button>
+
+    <div class="identity">
+      <span class="identity-role">Workspace</span>
+      <span class="identity-name" id="workspaceName">—</span>
+    </div>
+    <button class="identity-badge" id="btnOpenBase" type="button" title="Open workspace folder">
+      <svg class="ic ic-20"><use href="#i-folder"/></svg>
+      <span class="identity-chip" id="appVersion">v2</span>
+    </button>
+
+    <div class="win-controls">
+      <button class="win-btn" id="winMin" type="button" title="Minimise"><svg class="ic ic-16"><use href="#i-min"/></svg></button>
+      <button class="win-btn" id="winMax" type="button" title="Maximise"><svg class="ic ic-16"><use href="#i-max"/></svg></button>
+      <button class="win-btn danger" id="winClose" type="button" title="Close"><svg class="ic ic-16"><use href="#i-close"/></svg></button>
+    </div>
+  </div>
+</header>
+
+<!-- ===================== Body ===================== -->
+<main class="shell">
+
+  <!-- ---------- Left column ---------- -->
+  <aside class="col-left">
+    <section class="panel rings-panel">
+      <div class="rings" id="rings"></div>
+    </section>
+
+    <section class="panel source-panel">
+      <header class="panel-head">
+        <h2>Source Directory</h2>
+        <button class="ghost-btn" id="browseSide" type="button">Browse</button>
+      </header>
+      <p class="path-display" id="pathDisplay">No directory selected. Pick the folder that holds your vehicle resources and every meta file underneath it will be found.</p>
+      <div class="recent" id="recentList"></div>
+    </section>
+
+    <section class="panel log-panel">
+      <header class="panel-head">
+        <h2>Activity</h2>
+        <div class="head-actions">
+          <span class="counter" id="logCount">0</span>
+          <button class="ghost-btn" id="clearLog" type="button">Clear</button>
+        </div>
+      </header>
+      <div class="log" id="log" role="log" aria-live="polite"></div>
+    </section>
+  </aside>
+
+  <!-- ---------- Centre column ---------- -->
+  <section class="col-centre">
+
+    <section class="hero">
+      <div class="hero-art" aria-hidden="true">
+        <svg viewBox="0 0 520 520" class="hero-ring">
+          <circle cx="260" cy="260" r="238" class="ring-faint"/>
+          <circle cx="260" cy="260" r="196" class="ring-faint"/>
+          <g id="heroTicks"></g>
+          <circle cx="260" cy="260" r="150" class="ring-progress-track"/>
+          <circle cx="260" cy="260" r="150" class="ring-progress" id="ringProgress"/>
+        </svg>
+        <svg viewBox="0 0 48 48" class="hero-seal">
+          <circle cx="24" cy="24" r="21" class="badge-ring"/>
+          <path d="M24 10 12 15v9c0 7 5 13 12 14.6C31 37 36 31 36 24v-9l-12-5Z" class="badge-shield"/>
+          <path d="M17 25h14M19 21h10M20.5 29h7" class="badge-lines"/>
+        </svg>
+      </div>
+
+      <div class="hero-body">
+        <div class="hero-figure">
+          <span class="hero-number" id="statStaged">0</span>
+          <span class="hero-caption">files staged</span>
+        </div>
+        <div class="hero-divider">
+          <span class="hero-op" id="heroOp">Idle — no operation running</span>
+        </div>
+        <div class="hero-figure">
+          <span class="hero-number" id="statMerged">0</span>
+          <span class="hero-caption">vehicles in merged output</span>
+        </div>
+      </div>
+
+      <div class="hero-bars" aria-hidden="true" id="heroBars"></div>
+    </section>
+
+    <section class="panel ops-panel">
+      <header class="panel-head ops-head">
+        <div class="tabs" id="tabs">
+          <button class="tab is-active" data-group="merge" type="button">Merge</button>
+          <button class="tab" data-group="import" type="button">Import</button>
+          <button class="tab" data-group="tools" type="button">Tools</button>
+        </div>
+        <span class="ops-hint" id="opsHint">Merges whatever is staged in the working folders</span>
+      </header>
+      <div class="ops-grid" id="opsGrid"></div>
+    </section>
+  </section>
+
+  <!-- ---------- Right column ---------- -->
+  <aside class="col-right">
+    <header class="col-right-head">
+      <h2>Output</h2>
+      <button class="ghost-btn icon-only" id="refreshStats" type="button" title="Refresh">
+        <svg class="ic ic-16"><use href="#i-refresh"/></svg>
+      </button>
+    </header>
+    <div class="output-cards" id="outputCards"></div>
+  </aside>
+</main>
+
+<!-- ===================== Dock ===================== -->
+<footer class="dock">
+  <div class="dock-cluster" id="dockLeft"></div>
+  <button class="dock-emblem" id="dockPrimary" type="button" title="Import all + Emergency Flags">
+    <svg viewBox="0 0 48 48" aria-hidden="true">
+      <circle cx="24" cy="24" r="21" class="badge-ring"/>
+      <path d="M24 10 12 15v9c0 7 5 13 12 14.6C31 37 36 31 36 24v-9l-12-5Z" class="badge-shield"/>
+      <path d="m19 24 4 4 7-8" class="badge-check"/>
+    </svg>
+    <span class="dock-emblem-label">Flags</span>
+  </button>
+  <div class="dock-cluster" id="dockRight"></div>
+</footer>
+
+<!-- ===================== Modal ===================== -->
+<div class="modal-scrim" id="modalScrim" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <header class="modal-head">
+      <h3 id="modalTitle">Operation</h3>
+      <button class="icon-btn" id="modalClose" type="button"><svg class="ic ic-18"><use href="#i-close"/></svg></button>
+    </header>
+    <div class="modal-body" id="modalBody"></div>
+    <footer class="modal-foot">
+      <button class="ghost-btn" id="modalCancel" type="button">Cancel</button>
+      <button class="primary-btn" id="modalConfirm" type="button">Run</button>
+    </footer>
+  </div>
+</div>
+
+<div class="toast-stack" id="toasts"></div>
+
+<script src="renderer.js"></script>
+</body>
+</html>
