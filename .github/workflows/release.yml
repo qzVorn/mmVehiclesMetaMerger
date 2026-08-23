@@ -1,0 +1,103 @@
+name: Build Windows release
+
+# Run it by hand from the Actions tab, or by pushing a v* tag.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag, e.g. v2.0.0"
+        required: true
+        default: "v2.0.0"
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Verify the merge and emergency flag pipeline
+        run: npm test
+
+      - name: Build the Windows binaries
+        run: npx electron-builder --win --x64 --publish never
+
+      - name: Show what was produced
+        shell: bash
+        run: ls -la dist/
+
+      - name: Keep the binaries as workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmVehiclesMetaMerger-windows
+          path: dist/*.exe
+          if-no-files-found: error
+
+      - name: Publish the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          TAG="${{ github.event.inputs.tag }}"
+          if [ -z "$TAG" ]; then TAG="${GITHUB_REF_NAME}"; fi
+          echo "Publishing $TAG"
+
+          cat > RELEASE_NOTES.md <<'NOTES'
+          Tool made to easily merge multiple GTA 5 vehicle meta files, now with a desktop interface.
+
+          ## Downloads
+
+          | File | What it is |
+          |---|---|
+          | `...-portable.exe` | No install. Drop it in a folder and run it. **Recommended.** |
+          | `...-setup.exe` | Normal installer, adds a Start Menu shortcut. |
+
+          The portable build creates `vehicles_meta/`, `carcols_meta/`, `carvariations_meta/`, `handling_meta/`, `vehiclelayouts_meta/` and `output/` next to itself, exactly like the console version did.
+
+          ## What is new
+
+          **A desktop interface.** No more console menu. All sixteen operations are laid out and grouped Merge / Import / Tools, with live counts of what is staged in each working folder, a folder picker for the source directory, the merged output files listed for one-click reveal in Explorer, and the console output streamed into an activity log.
+
+          **Option 13: Import all + Emergency Flags.** Does what option 12 does, then merges, then appends these to every vehicle in the merged `output/vehicles.meta`:
+
+          - `FLAG_LAW_ENFORCEMENT`
+          - `FLAG_EMERGENCY_SERVICE`
+          - `FLAG_REPORT_CRIME_IF_STANDING_ON`
+
+          A flag a vehicle already carries is never written twice, and flags it already had are kept. Empty flag elements are filled in. Everything outside the flag elements is left byte-for-byte identical.
+
+          The old options 13, 14 and 15 are now 14, 15 and 16.
+
+          ## The merging engine is unchanged
+
+          `src/core.js` is a mechanical, byte-for-byte extraction of the merge and import functions from `app.js`. Only the terminal-specific seams were swapped so a window can drive them. `app.js` is untouched and still runs as the original command line tool via `npm run cli`.
+
+          ## Known issue, inherited from upstream
+
+          Option 15 (extract model names) only exports the first vehicle from each staged file. This is a pre-existing bug in the original tool and was deliberately left alone in this release.
+
+          ---
+
+          Original tool by [mmleczek](https://github.com/mmleczek).
+          NOTES
+
+          gh release create "$TAG" \
+            --title "mmVehiclesMetaMerger $TAG" \
+            --notes-file RELEASE_NOTES.md \
+            dist/*.exe
