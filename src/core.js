@@ -758,14 +758,19 @@ function ImportVehiclesMetaFromDir(directory) {
         fs.access(directory, (err) => {
             if (err) reject("Directory does not exist!".red);
             else {
-                glob("**/vehicles.meta", { cwd: directory } , function (er, files) {
+                // FIXED in 2.0.3 - a FiveM pack routinely ships several of these per
+                // resource (vehicles.meta, vehicles1.meta, vehicles2.meta ...), because
+                // fxmanifest can declare the same data_file type many times. The
+                // old exact-match pattern found only the unnumbered one and
+                // silently ignored the rest. nocase also covers capitalised names.
+                glob("**/vehicles*.meta", { cwd: directory, nocase: true } , function (er, files) {
                     if (er) reject(`Error occured during search for a files: ${er}`.red);
                     for (let i = 0; i < files.length; i++) {
                         fs.copyFile(path.join(directory, files[i]), `${getDir()}/vehicles_meta/vehicles${i}.meta`, (err) => {
                             if (err) console.log(`Error occured during coping file:\nFrom: ${path.join(directory, files[i])}\nTo: ${`${getDir()}/vehicles_meta/vehicles${i}.meta`}`.red);
                         });
                     }
-                    console.log("Importing all vehicles.meta files done!".magenta);
+                    console.log(`Importing all vehicles.meta files done! Found ${files.length} file(s).`.magenta);
                     resolve();
                 });
             }
@@ -780,14 +785,19 @@ function ImportCarcolsMetaFromDir(directory) {
         fs.access(directory, (err) => {
             if (err) reject("Directory does not exist!".red);
             else {
-                glob("**/carcols.meta", { cwd: directory } , function (er, files) {
+                // FIXED in 2.0.3 - a FiveM pack routinely ships several of these per
+                // resource (carcols.meta, carcols1.meta, carcols2.meta ...), because
+                // fxmanifest can declare the same data_file type many times. The
+                // old exact-match pattern found only the unnumbered one and
+                // silently ignored the rest. nocase also covers capitalised names.
+                glob("**/carcols*.meta", { cwd: directory, nocase: true } , function (er, files) {
                     if (er) reject(`Error occured during search for a files: ${er}`.red);
                     for (let i = 0; i < files.length; i++) {
                         fs.copyFile(path.join(directory, files[i]), `${getDir()}/carcols_meta/carcols${i}.meta`, (err) => {
                             if (err) console.log(`Error occured during coping file:\nFrom: ${path.join(directory, files[i])}\nTo: ${`${getDir()}/carcols_meta/carcols${i}.meta`}`.red);
                         });
                     }
-                    console.log("Importing all carcols.meta files done!".magenta);
+                    console.log(`Importing all carcols.meta files done! Found ${files.length} file(s).`.magenta);
                     resolve();
                 });
             }
@@ -802,14 +812,19 @@ function ImportCarvariationsMetaFromDir(directory) {
         fs.access(directory, (err) => {
             if (err) reject("Directory does not exist!".red);
             else {
-                glob("**/carvariations.meta", { cwd: directory } , function (er, files) {
+                // FIXED in 2.0.3 - a FiveM pack routinely ships several of these per
+                // resource (carvariations.meta, carvariations1.meta, carvariations2.meta ...), because
+                // fxmanifest can declare the same data_file type many times. The
+                // old exact-match pattern found only the unnumbered one and
+                // silently ignored the rest. nocase also covers capitalised names.
+                glob("**/carvariations*.meta", { cwd: directory, nocase: true } , function (er, files) {
                     if (er) reject(`Error occured during search for a files: ${er}`.red);
                     for (let i = 0; i < files.length; i++) {
                         fs.copyFile(path.join(directory, files[i]), `${getDir()}/carvariations_meta/carvariations${i}.meta`, (err) => {
                             if (err) console.log(`Error occured during coping file:\nFrom: ${path.join(directory, files[i])}\nTo: ${`${getDir()}/carvariations_meta/carvariations${i}.meta`}`.red);
                         });
                     }
-                    console.log("Importing all carvariations.meta files done!".magenta);
+                    console.log(`Importing all carvariations.meta files done! Found ${files.length} file(s).`.magenta);
                     resolve();
                 });
             }
@@ -824,14 +839,19 @@ function ImportHandlingMetaFromDir(directory) {
         fs.access(directory, (err) => {
             if (err) reject("Directory does not exist!".red);
             else {
-                glob("**/handling.meta", { cwd: directory } , function (er, files) {
+                // FIXED in 2.0.3 - a FiveM pack routinely ships several of these per
+                // resource (handling.meta, handling1.meta, handling2.meta ...), because
+                // fxmanifest can declare the same data_file type many times. The
+                // old exact-match pattern found only the unnumbered one and
+                // silently ignored the rest. nocase also covers capitalised names.
+                glob("**/handling*.meta", { cwd: directory, nocase: true } , function (er, files) {
                     if (er) reject(`Error occured during search for a files: ${er}`.red);
                     for (let i = 0; i < files.length; i++) {
                         fs.copyFile(path.join(directory, files[i]), `${getDir()}/handling_meta/handling${i}.meta`, (err) => {
                             if (err) console.log(`Error occured during coping file:\nFrom: ${path.join(directory, files[i])}\nTo: ${`${getDir()}/handling_meta/handling${i}.meta`}`.red);
                         });
                     }
-                    console.log("Importing all handling.meta files done!".magenta);
+                    console.log(`Importing all handling.meta files done! Found ${files.length} file(s).`.magenta);
                     resolve();
                 });
             }
@@ -846,14 +866,19 @@ function ImportVehicleLayoutsMetaFromDir(directory) {
         fs.access(directory, (err) => {
             if (err) reject("Directory does not exist!".red);
             else {
-                glob("**/vehiclelayouts.meta", { cwd: directory } , function (er, files) {
+                // FIXED in 2.0.3 - a FiveM pack routinely ships several of these per
+                // resource (vehiclelayouts.meta, vehiclelayouts1.meta, vehiclelayouts2.meta ...), because
+                // fxmanifest can declare the same data_file type many times. The
+                // old exact-match pattern found only the unnumbered one and
+                // silently ignored the rest. nocase also covers capitalised names.
+                glob("**/vehiclelayouts*.meta", { cwd: directory, nocase: true } , function (er, files) {
                     if (er) reject(`Error occured during search for a files: ${er}`.red);
                     for (let i = 0; i < files.length; i++) {
                         fs.copyFile(path.join(directory, files[i]), `${getDir()}/vehiclelayouts_meta/vehiclelayouts${i}.meta`, (err) => {
                             if (err) console.log(`Error occured during coping file:\nFrom: ${path.join(directory, files[i])}\nTo: ${`${getDir()}/vehiclelayouts_meta/vehiclelayouts${i}.meta`}`.red);
                         });
                     }
-                    console.log("Importing all vehiclelayouts.meta files done!".magenta);
+                    console.log(`Importing all vehiclelayouts.meta files done! Found ${files.length} file(s).`.magenta);
                     resolve();
                 });
             }
