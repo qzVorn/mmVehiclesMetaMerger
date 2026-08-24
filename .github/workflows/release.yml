@@ -88,9 +88,13 @@ jobs:
 
           `src/core.js` is a mechanical, byte-for-byte extraction of the merge and import functions from `app.js`. Only the terminal-specific seams were swapped so a window can drive them. `app.js` is untouched and still runs as the original command line tool via `npm run cli`.
 
-          ## Known issue, inherited from upstream
+          ## Fixed since 2.0.0
 
-          Option 15 (extract model names) only exports the first vehicle from each staged file. This is a pre-existing bug in the original tool and was deliberately left alone in this release.
+          **vehicles.meta silently failing to merge (2.0.1).** One odd file anywhere in the batch — a different root element, a missing `<InitDatas>` block, or invalid XML — threw an error that was swallowed internally, so `output/vehicles.meta` was never rewritten and you were left looking at the previous run's file. Every other meta type was unaffected, which is what made it confusing. Bad files are now named, written to `errors.txt` and skipped, and everything else still merges.
+
+          **Extract model names only returning one vehicle per file (2.0.2).** It read only the first `<Item>` in each file, so a vehicles.meta holding several vehicles exported just the first and silently dropped the rest. It now walks every entry.
+
+          Both merge and extract steps now report their counts, for example *"47 vehicle(s) from 12 file(s)"*, so a skipped file is visible instead of silent.
 
           ---
 
