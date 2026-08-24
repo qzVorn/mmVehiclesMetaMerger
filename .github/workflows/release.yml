@@ -94,6 +94,8 @@ jobs:
 
           **Extract model names only returning one vehicle per file (2.0.2).** It read only the first `<Item>` in each file, so a vehicles.meta holding several vehicles exported just the first and silently dropped the rest. It now walks every entry.
 
+          **Numbered meta files being ignored (2.0.3).** This is the big one. A FiveM resource can declare the same data_file type several times, so packs routinely ship `vehicles.meta`, `vehicles1.meta`, `vehicles2.meta` and so on. The importer matched the exact name `vehicles.meta` only, so it found one file and silently skipped every other car in the pack. `handling.meta` usually being a single shared file is why that one always looked correct. All five importers now match numbered variants and are case-insensitive, and the import step reports how many files it found.
+
           Both merge and extract steps now report their counts, for example *"47 vehicle(s) from 12 file(s)"*, so a skipped file is visible instead of silent.
 
           ---
