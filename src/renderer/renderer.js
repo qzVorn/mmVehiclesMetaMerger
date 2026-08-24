@@ -45,7 +45,10 @@ const state = {
     sourceDir: "",
     emergencyFlags: [],
     logLines: 0,
-    recents: []
+    recents: [],
+    outputView: { level: "root", run: null },
+    runs: [],
+    unsorted: []
 };
 
 /* ---------------------------------------------------------------- meta -- */
@@ -108,7 +111,7 @@ async function boot() {
     state.recents = readRecents();
     renderRecents();
     renderRings(null);
-    renderOutputs(null);
+    renderOutputs();
     renderOps();
 
     buildDock();
@@ -171,29 +174,131 @@ function renderRings(stats) {
     }).join("");
 }
 
-function renderOutputs(stats) {
-    el.outputCards.innerHTML = OUTPUT_META.map((meta) => {
-        const info = stats ? stats.output[meta.key] : { exists: false, size: 0, path: "" };
-        return `
+function fileCardsHtml(files) {
+    return files.map((f) => `
         <button class="out-card" type="button"
-                data-exists="${info.exists}"
-                data-path="${escapeAttr(info.path || "")}"
-                title="${info.exists ? "Open " + info.path : meta.label + " has not been generated yet"}">
-          <span class="out-folder"><span class="out-size">${info.exists ? formatSize(info.size) : "—"}</span></span>
-          <span class="out-name">${meta.label}</span>
-        </button>`;
-    }).join("");
+                data-exists="${f.exists}"
+                data-path="${escapeAttr(f.path || "")}"
+                title="${f.exists ? "Reveal " + f.path : f.name + " was not produced by this run"}">
+          <span class="out-doc"><span class="out-size">${f.exists ? formatSize(f.size) : "—"}</span></span>
+          <span class="out-name">${f.name === "exportedModelNames.txt" ? "model names" : f.name}</span>
+        </button>`).join("");
+}
 
-    el.outputCards.querySelectorAll(".out-card").forEach((card) => {
-        card.addEventListener("click", () => {
-            const target = card.dataset.path;
-            if (card.dataset.exists !== "true") {
-                toast("info", "That file has not been generated yet.");
+function timeAgo(iso) {
+    if (!iso) return "";
+    const secs = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+    if (secs < 90) return "just now";
+    if (secs < 3600) return Math.round(secs / 60) + "m ago";
+    if (secs < 86400) return Math.round(secs / 3600) + "h ago";
+    if (secs < 172800) return "yesterday";
+    return Math.round(secs / 86400) + "d ago";
+}
+
+function renderOutputs() {
+    const head = $("#outputHead");
+
+    // ---------- inside one run ----------
+    if (state.outputView.level === "run") {
+        const run = state.runs.find((r) => r.name === state.outputView.run);
+        if (!run) { state.outputView = { level: "root", run: null }; return renderOutputs(); }
+
+        head.innerHTML = `
+            <button class="crumb-back" id="crumbBack" type="button" title="All outputs">
+              <svg class="ic ic-16"><use href="#i-chevron"/></svg>
+            </button>
+            <h2 title="${escapeAttr(run.name)}">${escapeHtml(run.name)}</h2>
+            <button class="ghost-btn icon-only" id="revealRun" type="button" title="Open this folder">
+              <svg class="ic ic-16"><use href="#i-open"/></svg>
+            </button>`;
+
+        el.outputCards.innerHTML = fileCardsHtml(run.files);
+        $("#crumbBack").addEventListener("click", () => {
+            state.outputView = { level: "root", run: null };
+            renderOutputs();
+        });
+        $("#revealRun").addEventListener("click", () => merger.openPath(run.path));
+        wireFileCards();
+        return;
+    }
+
+    // ---------- the list of runs ----------
+    head.innerHTML = `
+        <h2>Output</h2>
+        <button class="ghost-btn icon-only" id="refreshStats" type="button" title="Refresh">
+          <svg class="ic ic-16"><use href="#i-refresh"/></svg>
+        </button>`;
+
+    const looseCount = state.unsorted.filter((f) => f.exists).length;
+
+    let html = state.runs.map((run) => `
+        <button class="run-card" type="button" data-run="${escapeAttr(run.name)}" title="${escapeAttr(run.source || run.path)}">
+          <span class="out-folder"><span class="out-size">${run.files.filter((f) => f.exists).length}</span></span>
+          <span class="run-name">${escapeHtml(run.name)}</span>
+          <span class="run-sub">${run.vehicles !== null ? run.vehicles + " vehicle" + (run.vehicles === 1 ? "" : "s") : "—"}${run.created ? " · " + timeAgo(run.created) : ""}</span>
+          <span class="run-del" data-del="${escapeAttr(run.name)}" title="Delete this output folder">
+            <svg class="ic ic-14"><use href="#i-broom"/></svg>
+          </span>
+        </button>`).join("");
+
+    if (looseCount) {
+        html += `
+        <button class="run-card is-unsorted" type="button" data-run="__unsorted__" title="Files sitting loose in the output folder">
+          <span class="out-folder"><span class="out-size">${looseCount}</span></span>
+          <span class="run-name">Unsorted</span>
+          <span class="run-sub">not filed under a pack</span>
+        </button>`;
+    }
+
+    if (!html) html = `<div class="run-empty">No outputs yet.<br>Run an import and merge to create one.</div>`;
+
+    el.outputCards.innerHTML = html;
+
+    el.outputCards.querySelectorAll(".run-card").forEach((card) => {
+        card.addEventListener("click", async (e) => {
+            const del = e.target.closest("[data-del]");
+            if (del) {
+                e.stopPropagation();
+                const name = del.dataset.del;
+                const ok = await confirmDelete(name);
+                if (!ok) return;
+                await merger.deleteRun(name);
+                toast("success", `Deleted "${name}".`);
+                await refreshStats();
                 return;
             }
-            merger.revealPath(target);
+
+            const name = card.dataset.run;
+            if (name === "__unsorted__") {
+                state.runs = state.runs.concat([{ name: "__unsorted__", path: state.baseDir + "/output", files: state.unsorted, vehicles: null, created: null, source: null }]);
+                state.outputView = { level: "run", run: "__unsorted__" };
+            } else {
+                state.outputView = { level: "run", run: name };
+            }
+            renderOutputs();
         });
     });
+}
+
+function wireFileCards() {
+    el.outputCards.querySelectorAll(".out-card").forEach((card) => {
+        card.addEventListener("click", () => {
+            if (card.dataset.exists !== "true") {
+                toast("info", "That file was not produced by this run.");
+                return;
+            }
+            merger.revealPath(card.dataset.path);
+        });
+    });
+}
+
+function confirmDelete(name) {
+    return openModal("Delete output folder", `
+        <p class="field-note">
+          This permanently deletes <strong>output/${escapeHtml(name)}/</strong> and every file inside it.
+          The source pack on your drive is not touched.
+        </p>
+    `, "Delete").then((v) => v === true);
 }
 
 function renderOps() {
@@ -278,9 +383,11 @@ async function runOperation(id) {
         if (!dir) return;
         payload.sourceDir = dir;
         if (id === 13) {
-            const confirmed = await confirmFlags(dir);
-            if (!confirmed) return;
+            const suggested = await merger.deriveName(dir);
+            const chosen = await confirmFlags(dir, suggested);
+            if (!chosen) return;
             payload.flags = state.emergencyFlags;
+            payload.folderName = chosen.folderName;
         }
     }
 
@@ -324,6 +431,7 @@ async function clearStaging() {
 /* -------------------------------------------------------------- modals -- */
 
 let modalResolve = null;
+let lastFolderName = "";
 
 function openModal(title, bodyHtml, confirmLabel) {
     el.modalTitle.textContent = title;
@@ -340,7 +448,7 @@ function closeModal(value) {
     if (modalResolve) { modalResolve(value); modalResolve = null; }
 }
 
-function confirmFlags(dir) {
+function confirmFlags(dir, suggested) {
     const rows = state.emergencyFlags.map((flag) => `
         <div class="flag-row">
           <svg class="ic ic-16"><use href="#i-shield"/></svg>
@@ -362,7 +470,12 @@ function confirmFlags(dir) {
           <label>Source directory</label>
           <div class="path-display is-set" style="margin:0">${escapeHtml(dir)}</div>
         </div>
-    `, "Import, merge & flag").then((v) => v === true);
+        <div class="field">
+          <label>Save results into output folder</label>
+          <input id="runFolder" type="text" value="${escapeAttr(suggested || "")}" placeholder="folder name" />
+          <span class="field-note">Taken from the pack folder. Change it if you want a different name.</span>
+        </div>
+    `, "Import, merge & flag").then((v) => (v === true ? { folderName: lastFolderName } : null));
 }
 
 async function askQuery() {
@@ -443,12 +556,17 @@ function stopProgress(reset) {
 
 async function refreshStats() {
     const stats = await merger.stats();
+    const out = await merger.listRuns();
+    state.runs = out.runs;
+    state.unsorted = out.unsorted;
+
     renderRings(stats);
-    renderOutputs(stats);
+    renderOutputs();
 
     const staged = Object.values(stats.staged).reduce((a, b) => a + b, 0);
     countUp(el.statStaged, staged);
-    countUp(el.statMerged, stats.mergedVehicleCount || 0);
+    const newest = state.runs.find((r) => typeof r.vehicles === "number");
+    countUp(el.statMerged, newest ? newest.vehicles : (stats.mergedVehicleCount || 0));
 }
 
 function countUp(node, target) {
@@ -534,6 +652,9 @@ function wireEvents() {
     el.modalScrim.addEventListener("mousedown", (e) => { if (e.target === el.modalScrim) closeModal(false); });
 
     el.modalConfirm.addEventListener("click", () => {
+        const runFolder = $("#runFolder");
+        if (runFolder) lastFolderName = runFolder.value.trim() || runFolder.placeholder;
+
         const from  = $("#qFrom");
         const to    = $("#qTo");
         const query = $("#qQuery");

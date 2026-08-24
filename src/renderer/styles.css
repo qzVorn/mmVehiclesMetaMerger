@@ -742,14 +742,43 @@ h1, h2, h3 { font-weight: 600; }
     border-radius: 12px;
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent 55%);
 }
-.out-card:hover .out-folder { filter: brightness(1.1); box-shadow: 0 16px 30px -12px rgba(126, 159, 228, 1); }
+/* A run folder holds files, so the file cards inside it are drawn as sheets of
+ * paper with a folded corner rather than as more folders. */
+.out-doc {
+    position: relative;
+    width: 62px; height: 78px;
+    border-radius: 9px;
+    background: linear-gradient(165deg, #A9C4FA, #7E9FE4);
+    box-shadow: 0 12px 26px -14px rgba(126, 159, 228, 0.9);
+    transition: filter 0.2s var(--ease), box-shadow 0.2s var(--ease);
+}
+/* the cut corner */
+.out-doc::before {
+    content: "";
+    position: absolute;
+    top: 0; right: 0;
+    width: 0; height: 0;
+    border-top: 21px solid var(--bg);
+    border-left: 21px solid transparent;
+    border-top-right-radius: 9px;
+}
+/* the fold itself, sitting just under the cut */
+.out-doc::after {
+    content: "";
+    position: absolute;
+    top: 0; right: 0;
+    width: 0; height: 0;
+    border-bottom: 21px solid rgba(9, 16, 34, 0.22);
+    border-left: 21px solid transparent;
+}
 
-.out-card[data-exists="false"] .out-folder {
+.out-card:hover .out-doc { filter: brightness(1.1); box-shadow: 0 16px 30px -12px rgba(126, 159, 228, 1); }
+
+.out-card[data-exists="false"] .out-doc {
     background: rgba(150, 180, 245, 0.09);
     box-shadow: inset 0 0 0 1px var(--line);
 }
-.out-card[data-exists="false"] .out-folder::before { background: rgba(150, 180, 245, 0.09); }
-.out-card[data-exists="false"] .out-folder::after { background: none; }
+.out-card[data-exists="false"] .out-doc::after { border-bottom-color: rgba(150, 180, 245, 0.09); }
 
 .out-size {
     position: absolute;
@@ -975,6 +1004,7 @@ h1, h2, h3 { font-weight: 600; }
     .hero { height: 260px; }
     .hero-number { font-size: 62px; }
     .out-folder { width: 80px; height: 62px; }
+    .out-doc { width: 54px; height: 68px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -983,4 +1013,87 @@ h1, h2, h3 { font-weight: 600; }
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
     }
+}
+
+/* --------------------- output: run folders (2.1.0) -------------------- */
+
+.col-right-head h2 {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.crumb-back {
+    flex: none;
+    width: 22px; height: 22px;
+    display: grid; place-items: center;
+    border-radius: 7px;
+    color: var(--txt-mute);
+    transform: rotate(180deg);
+    transition: color 0.16s var(--ease), background 0.16s var(--ease);
+}
+.crumb-back:hover { color: var(--accent-hi); background: var(--accent-wash); }
+
+.run-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 4px 10px;
+    border-radius: var(--r-md);
+    text-align: center;
+    transition: transform 0.2s var(--ease), background 0.2s var(--ease);
+}
+.run-card:hover { transform: translateY(-2px); background: rgba(157, 187, 247, 0.06); }
+.run-card:hover .out-folder { filter: brightness(1.1); }
+
+.run-name {
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--txt);
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.3;
+}
+.run-sub {
+    font-size: 10px;
+    color: var(--txt-mute);
+    line-height: 1.3;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.run-card.is-unsorted .out-folder {
+    background: rgba(150, 180, 245, 0.14);
+    box-shadow: inset 0 0 0 1px var(--line-mid);
+}
+.run-card.is-unsorted .out-folder::before { background: rgba(150, 180, 245, 0.14); }
+
+.run-del {
+    position: absolute;
+    top: 4px; right: 4px;
+    width: 22px; height: 22px;
+    display: grid; place-items: center;
+    border-radius: 7px;
+    color: var(--txt-mute);
+    background: rgba(9, 13, 26, 0.7);
+    opacity: 0;
+    transition: opacity 0.16s var(--ease), color 0.16s var(--ease), background 0.16s var(--ease);
+}
+.run-card:hover .run-del { opacity: 1; }
+.run-del:hover { color: var(--err); background: rgba(245, 139, 139, 0.16); }
+
+.run-empty {
+    padding: 22px 10px;
+    font-size: 11.5px;
+    line-height: 1.6;
+    color: var(--txt-mute);
+    text-align: center;
 }
