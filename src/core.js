@@ -235,46 +235,85 @@ function ParseXML(data) {
     return e;
 }
 
+/*
+ * FIXED in 2.0.1.
+ *
+ * Previously this aborted the whole merge if a single file failed: the callback
+ * only fired once EVERY file had parsed, so one malformed .meta meant the merge
+ * never ran and the previous output file was silently left in place. The
+ * readFile() call was also unguarded, so an unreadable entry rejected the whole
+ * async callback and stopped the loop partway.
+ *
+ * Now each file is attempted independently. Bad ones are named, logged to
+ * errors.txt and skipped; whatever parsed successfully is still merged.
+ */
 function GetFiles(path, cb) {
-    let files_status = {}
     let files_to_merge = [];
-    
-    fs.readdir(path, async (err, files) => {
-        if (err) console.error(err);
-        else {
-            if (files.length) {
-                fs.writeFileSync(`${getDir()}/errors.txt`, "");
-                files.forEach(file => { files_status[file] = false; });
+    let skipped = [];
 
-                for (let i = 0; i < files.length; i++) {
-                    const file = files[i];
-                    const data = await fs.promises.readFile(`${path}/${file}`);
-                    await ParseXML(data).then((result) => {
-                        files_to_merge.push(result);
-                        files_status[file] = true;
-                        if (IsEveryObjectTrue(files_status)) cb(files_to_merge);
-                        else {
-                            if (files.length == (i+1))
-                                rli.question("Error occured, fix it before merging files. Press ENTER to exit.".red, (answer) => {
-                                    rli.close;
-                                    process.exit(0);
-                                });
-                        }
-                    }).catch((e) => {
-                        console.log(`There was an error in file ${file}`.red);
-                        console.error(e);
-                        fs.appendFileSync(`${getDir()}/errors.txt`, `There was an error in file ${file}\n${e}\n\n`);
-                    });
-                };
-            } else {
-                console.log(`There were not any files in given path: ${path}`.yellow)
-                cb([]);
-            }
+    fs.readdir(path, async (err, files) => {
+        if (err) {
+            console.error(err);
+            cb([]);
+            return;
         }
+
+        if (!files.length) {
+            console.log(`There were not any files in given path: ${path}`.yellow)
+            cb([]);
+            return;
+        }
+
+        fs.writeFileSync(`${getDir()}/errors.txt`, "");
+
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            try {
+                const data = await fs.promises.readFile(`${path}/${file}`);
+                const result = await ParseXML(data);
+                // Remember where this document came from so the merge step can
+                // name the offending file rather than guessing. Non-enumerable,
+                // so it never reaches the XML builder.
+                Object.defineProperty(result, "__source", { value: file, enumerable: false });
+                files_to_merge.push(result);
+            } catch (e) {
+                skipped.push(file);
+                console.log(`Skipping ${file} - it could not be read or parsed.`.red);
+                console.error(e);
+                fs.appendFileSync(`${getDir()}/errors.txt`, `Could not read or parse ${file}\n${e}\n\n`);
+            }
+        };
+
+        if (skipped.length) {
+            console.log(`Skipped ${skipped.length} unreadable file(s): ${skipped.join(", ")}`.yellow);
+        }
+
+        cb(files_to_merge);
     });
 }
 
+/*
+ * NEW in 2.0.1. Drops any parsed document whose root element is not the one the
+ * merge function expects. A single stray file (a carcols.meta saved as
+ * vehicles.meta, a stub with no data, an unrelated XML) used to throw a
+ * TypeError deep inside the merge, which was swallowed by the catch above and
+ * left the output file unwritten with no clear reason why.
+ */
+function documentsWithRoot(files, rootName) {
+    let usable = [];
+
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (file && file[rootName] != undefined) usable.push(file);
+        else console.log(`Skipping ${(file && file.__source) || "a file"} - it is not a <${rootName}> document.`.yellow);
+    }
+
+    return usable;
+}
+
 function ExtractModelNamesVehicleMetas(files) {
+    files = documentsWithRoot(files, "CVehicleModelInfo__InitDataList");   // FIXED in 2.0.1
+
     if (files.length > 0) {
         let modelNames = "";
 
@@ -294,6 +333,8 @@ function ExtractModelNamesVehicleMetas(files) {
 }
 
 function MergeVehicleMetas(files) {
+    files = documentsWithRoot(files, "CVehicleModelInfo__InitDataList");   // FIXED in 2.0.1
+
     if (files.length > 0) {
         let o = JSON.parse(JSON.stringify(files[0]));
 
@@ -301,9 +342,14 @@ function MergeVehicleMetas(files) {
         if (o.CVehicleModelInfo__InitDataList.txdRelationships == undefined || o.CVehicleModelInfo__InitDataList.txdRelationships == "") o.CVehicleModelInfo__InitDataList.txdRelationships = [];
     
         for (let i = 1; i < files.length; i++) {
-            for (let j = 0; j < files[i].CVehicleModelInfo__InitDataList.InitDatas.length; j++) {
-                if (typeof files[i].CVehicleModelInfo__InitDataList.InitDatas[j] == "object") 
-                    o.CVehicleModelInfo__InitDataList.InitDatas.push(files[i].CVehicleModelInfo__InitDataList.InitDatas[j]);
+            // FIXED in 2.0.1 - this guard was missing here and present in every
+            // other merge function, which is why vehicles.meta was the only one
+            // that failed to merge.
+            if (files[i].CVehicleModelInfo__InitDataList.InitDatas != undefined) {
+                for (let j = 0; j < files[i].CVehicleModelInfo__InitDataList.InitDatas.length; j++) {
+                    if (typeof files[i].CVehicleModelInfo__InitDataList.InitDatas[j] == "object") 
+                        o.CVehicleModelInfo__InitDataList.InitDatas.push(files[i].CVehicleModelInfo__InitDataList.InitDatas[j]);
+                }
             }
     
             if (files[i].CVehicleModelInfo__InitDataList.txdRelationships) {
@@ -324,11 +370,13 @@ function MergeVehicleMetas(files) {
         xml = removeDuplicated("txdRelationships", xml)
     
         fs.writeFileSync(`${getDir()}/output/vehicles.meta`, xml);
-        console.log("Merging all vehicles.meta files done!".green);
+        console.log(`Merging all vehicles.meta files done! ${(xml.match(/<modelName>/g) || []).length} vehicle(s) from ${files.length} file(s).`.green);
     }
 }
 
 function MergeCarcolsMetas(files) {
+    files = documentsWithRoot(files, "CVehicleModelInfoVarGlobal");   // FIXED in 2.0.1
+
     if (files.length > 0) {
         let o = JSON.parse(JSON.stringify(files[0]));
 
@@ -376,6 +424,8 @@ function MergeCarcolsMetas(files) {
 }
 
 function MergeCarvariationsMetas(files) {
+    files = documentsWithRoot(files, "CVehicleModelInfoVariation");   // FIXED in 2.0.1
+
     if (files.length > 0) {
         let o = JSON.parse(JSON.stringify(files[0]));
 
@@ -402,6 +452,8 @@ function MergeCarvariationsMetas(files) {
 }
 
 function MergeHandlingMetas(files) {
+    files = documentsWithRoot(files, "CHandlingDataMgr");   // FIXED in 2.0.1
+
     if (files.length > 0) {
         let o = JSON.parse(JSON.stringify(files[0]));
 
@@ -428,6 +480,8 @@ function MergeHandlingMetas(files) {
 }
 
 function MergeVehicleLayoutsMetas(files) {
+    files = documentsWithRoot(files, "CVehicleMetadataMgr");   // FIXED in 2.0.1
+
     if (files.length > 0) {
         let o = JSON.parse(JSON.stringify(files[0]));
 
