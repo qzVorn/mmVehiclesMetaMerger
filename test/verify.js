@@ -298,6 +298,63 @@ async function main() {
         check("bad file is the FIRST one - both good vehicles still merged", count === 2, `expected 2 vehicles, got ${count}`);
     }
 
+    // ------------------------------------------------------------------
+    // Regression test for the 2.0.3 fix.
+    //
+    // A FiveM resource can declare the same data_file type several times, so
+    // packs routinely ship vehicles.meta, vehicles1.meta, vehicles2.meta and so
+    // on. The import glob used to be an exact match on "vehicles.meta", which
+    // found only the unnumbered file and silently ignored every other car in
+    // the pack. handling.meta usually being a single shared file is why that
+    // one looked fine.
+    // ------------------------------------------------------------------
+    console.log("\nStep 6 - numbered meta files must all be imported");
+
+    {
+        const pack = fs.mkdtempSync(path.join(os.tmpdir(), "mmvmm-pack-"));
+        const ws = fs.mkdtempSync(path.join(os.tmpdir(), "mmvmm-numws-"));
+        const data = path.join(pack, "data");
+        fs.mkdirSync(data, { recursive: true });
+
+        const oneCar = (m) => `<?xml version="1.0" encoding="UTF-8"?>
+<CVehicleModelInfo__InitDataList>
+  <residentTxd>vehshare</residentTxd>
+  <InitDatas>
+    <Item><modelName>${m}</modelName><flags>FLAG_HAS_LIVERY</flags></Item>
+  </InitDatas>
+</CVehicleModelInfo__InitDataList>`;
+
+        fs.writeFileSync(path.join(data, "vehicles.meta"), oneCar("car_zero"));
+        fs.writeFileSync(path.join(data, "vehicles1.meta"), oneCar("car_one"));
+        fs.writeFileSync(path.join(data, "vehicles2.meta"), oneCar("car_two"));
+        fs.writeFileSync(path.join(data, "Vehicles3.meta"), oneCar("car_three"));   // capitalised
+        fs.writeFileSync(path.join(data, "handling.meta"), HANDLING);
+        fs.writeFileSync(path.join(data, "vehiclelayouts.meta"), LAYOUTS);
+
+        core.setBaseDir(ws);
+        core.ensureWorkspace();
+
+        await core.ImportVehiclesMetaFromDir(pack);
+        await core.ImportVehicleLayoutsMetaFromDir(pack);
+        await new Promise((r) => setTimeout(r, 600));
+
+        const staged = core.workspaceStats();
+        check("all four vehicles*.meta imported (including the capitalised one)",
+            staged.staged.vehicles === 4, `expected 4, got ${staged.staged.vehicles}`);
+        check("vehiclelayouts.meta not swallowed by the vehicles pattern",
+            staged.staged.vehiclelayouts === 1, `expected 1, got ${staged.staged.vehiclelayouts}`);
+
+        await core.VehiclesMetaProcedure();
+        await new Promise((r) => setTimeout(r, 300));
+
+        const merged = fs.readFileSync(path.join(ws, "output", "vehicles.meta"), "utf8");
+        const models = (merged.match(/<modelName>([^<]*)<\/modelName>/g) || []);
+        check("every car in the pack reaches the merged output", models.length === 4, `got ${models.length}: ${models.join(", ")}`);
+        ["car_zero", "car_one", "car_two", "car_three"].forEach((m) => {
+            check(`"${m}" present in merged output`, merged.indexOf(`<modelName>${m}</modelName>`) !== -1);
+        });
+    }
+
     // Restore the main workspace for the summary below.
     core.setBaseDir(workspace);
 
