@@ -355,6 +355,125 @@ async function main() {
         });
     }
 
+
+    // ---------------------------------------------------------------------
+    console.log("\nStep 7 - named output folders");
+    // ---------------------------------------------------------------------
+    {
+        // deriveRunName: the path the user actually gave us.
+        check("deriveRunName walks up past 'data' and collapses the repeat",
+            core.deriveRunName("D:\\labubu\\194.45.197.208_30120\\alhosn_debage\\alhosn_debage\\data") === "alhosn_debage",
+            `got "${core.deriveRunName("D:\\labubu\\194.45.197.208_30120\\alhosn_debage\\alhosn_debage\\data")}"`);
+
+        const nameCases = [
+            ["C:\\packs\\lspd_pack\\data", "lspd_pack"],
+            ["C:\\packs\\lspd_pack", "lspd_pack"],
+            ["/home/x/packs/lspd_pack/stream", "lspd_pack"],
+            ["C:\\packs\\lspd_pack\\data\\vehicles", "lspd_pack"],
+            ["C:\\data", "unsorted"],
+            ["", "unsorted"]
+        ];
+        nameCases.forEach(([input, expected]) => {
+            const got = core.deriveRunName(input);
+            check(`deriveRunName("${input}") -> "${expected}"`, got === expected, `got "${got}"`);
+        });
+
+        check("deriveRunName strips characters Windows rejects",
+            core.deriveRunName("C:\\packs\\bad:name?\\data") === "badname",
+            `got "${core.deriveRunName("C:\\packs\\bad:name?\\data")}"`);
+
+        // A throwaway workspace so the runs below cannot disturb the others.
+        const rws = fs.mkdtempSync(path.join(os.tmpdir(), "mmvmm-runs-"));
+        core.setBaseDir(rws);
+        core.ensureWorkspace();
+
+        const outRoot = path.join(rws, "output");
+        function fakeRun(models) {
+            fs.writeFileSync(path.join(outRoot, "vehicles.meta"),
+                `<CVehicleModelInfo__InitDataList><InitDatas>` +
+                models.map((m) => `<Item><modelName>${m}</modelName></Item>`).join("") +
+                `</InitDatas></CVehicleModelInfo__InitDataList>`);
+            fs.writeFileSync(path.join(outRoot, "handling.meta"), HANDLING);
+        }
+
+        fakeRun(["a1", "a2", "a3"]);
+        const r1 = core.finaliseRun("alhosn_debage", "D:\\packs\\alhosn_debage\\data");
+        check("finaliseRun creates output/alhosn_debage/",
+            fs.existsSync(path.join(outRoot, "alhosn_debage", "vehicles.meta")));
+        check("finaliseRun counts the vehicles it filed", r1 && r1.vehicles === 3, `got ${r1 && r1.vehicles}`);
+        check("finaliseRun empties the output root", !fs.existsSync(path.join(outRoot, "vehicles.meta")));
+        check("finaliseRun writes a _run.json", fs.existsSync(path.join(outRoot, "alhosn_debage", "_run.json")));
+
+        await new Promise((r) => setTimeout(r, 15));
+        fakeRun(["b1"]);
+        core.finaliseRun("lspd_pack", "D:\\packs\\lspd_pack\\data");
+
+        await new Promise((r) => setTimeout(r, 15));
+        fakeRun(["a1", "a2", "a3"]);
+        const r3 = core.finaliseRun("alhosn_debage", "D:\\packs\\alhosn_debage\\data");
+        check("a second run of the same pack is suffixed, never overwritten",
+            r3 && r3.name === "alhosn_debage (2)", `got "${r3 && r3.name}"`);
+        check("the first run's files are still there",
+            fs.existsSync(path.join(outRoot, "alhosn_debage", "vehicles.meta")));
+
+        check("finaliseRun with nothing to file returns null", core.finaliseRun("empty_run", null) === null);
+
+        const listed = core.listRuns();
+        check("listRuns finds all three runs", listed.runs.length === 3, `got ${listed.runs.length}`);
+        check("listRuns puts the newest first",
+            listed.runs[0].name === "alhosn_debage (2)", `got "${listed.runs[0].name}"`);
+        check("listRuns reports the source folder", listed.runs[0].source === "D:\\packs\\alhosn_debage\\data");
+        check("listRuns marks which meta files a run actually has",
+            listed.runs[0].files.filter((f) => f.exists).length === 2,
+            `got ${listed.runs[0].files.filter((f) => f.exists).length}`);
+        check("listRuns reports no loose files once every run is filed",
+            listed.unsorted.filter((f) => f.exists).length === 0);
+
+        // A folder made by hand still shows up.
+        fs.mkdirSync(path.join(outRoot, "made_by_hand"), { recursive: true });
+        fs.writeFileSync(path.join(outRoot, "made_by_hand", "handling.meta"), HANDLING);
+        check("listRuns includes a folder with no _run.json",
+            core.listRuns().runs.some((r) => r.name === "made_by_hand"));
+
+        check("deleteRun removes the folder", core.deleteRun("lspd_pack") === true);
+        check("the deleted run is gone from disk", !fs.existsSync(path.join(outRoot, "lspd_pack")));
+        check("the other runs survive the delete",
+            core.listRuns().runs.length === 3, `got ${core.listRuns().runs.length}`);
+        check("deleteRun refuses to escape the output folder", core.deleteRun("../..") === false);
+        check("deleteRun refuses an empty name", core.deleteRun("") === false);
+        check("output/ itself still exists after the escape attempt", fs.existsSync(outRoot));
+
+        // The staging leak this feature was built to close.
+        const leakPack = fs.mkdtempSync(path.join(os.tmpdir(), "mmvmm-leak-"));
+        fs.mkdirSync(path.join(leakPack, "data"), { recursive: true });
+        fs.writeFileSync(path.join(leakPack, "data", "vehicles.meta"),
+            vehiclesMeta([{ model: "leak_car", flags: "FLAG_HAS_LIVERY" }]));
+
+        await core.ImportVehiclesMetaFromDir(leakPack);
+        await new Promise((r) => setTimeout(r, 400));
+        check("first import stages one file", core.workspaceStats().staged.vehicles === 1,
+            `got ${core.workspaceStats().staged.vehicles}`);
+
+        const leakPack2 = fs.mkdtempSync(path.join(os.tmpdir(), "mmvmm-leak2-"));
+        fs.mkdirSync(path.join(leakPack2, "data"), { recursive: true });
+        fs.writeFileSync(path.join(leakPack2, "data", "vehicles.meta"),
+            vehiclesMeta([{ model: "second_car", flags: "FLAG_HAS_LIVERY" }]));
+
+        core.clearStagingFolder("vehicles");
+        await core.ImportVehiclesMetaFromDir(leakPack2);
+        await new Promise((r) => setTimeout(r, 400));
+
+        const afterClear = core.workspaceStats().staged.vehicles;
+        check("clearStagingFolder stops the previous pack leaking into the next run",
+            afterClear === 1, `expected 1 staged file, got ${afterClear}`);
+
+        await core.VehiclesMetaProcedure();
+        await new Promise((r) => setTimeout(r, 300));
+        const leakMerged = fs.readFileSync(path.join(outRoot, "vehicles.meta"), "utf8");
+        check("only the second pack's car is in the merged output",
+            leakMerged.indexOf("second_car") !== -1 && leakMerged.indexOf("leak_car") === -1);
+    }
+
     // Restore the main workspace for the summary below.
     core.setBaseDir(workspace);
 
