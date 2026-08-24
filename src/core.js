@@ -318,17 +318,29 @@ function ExtractModelNamesVehicleMetas(files) {
         let modelNames = "";
 
         for (let i = 0; i < files.length; i++) {
+            // FIXED in 2.0.2 - guard, matching every other function here.
+            if (files[i].CVehicleModelInfo__InitDataList.InitDatas == undefined) continue;
+
             for (let j = 0; j < files[i].CVehicleModelInfo__InitDataList.InitDatas.length; j++) {
                 if (typeof files[i].CVehicleModelInfo__InitDataList.InitDatas[j] == "object") {
                     let obj = files[i].CVehicleModelInfo__InitDataList.InitDatas[j];
-                    if (obj.Item && obj.Item[0] && obj.Item[0].modelName && obj.Item[0].modelName[0])
-                        modelNames += `${obj.Item[0].modelName[0]}\n`;
+
+                    // FIXED in 2.0.2 - this used to read obj.Item[0] only, so a
+                    // vehicles.meta holding several vehicles exported just the
+                    // first one and silently dropped the rest. Walk every Item.
+                    if (obj.Item == undefined) continue;
+
+                    for (let k = 0; k < obj.Item.length; k++) {
+                        const item = obj.Item[k];
+                        if (item && item.modelName && item.modelName[0])
+                            modelNames += `${item.modelName[0]}\n`;
+                    }
                 }
             }
         }
 
         fs.writeFileSync(`${getDir()}/output/exportedModelNames.txt`, modelNames);
-        console.log("Extracting model names from vehicles.meta files done!".green);
+        console.log(`Extracting model names from vehicles.meta files done! ${modelNames.split("\n").filter((n) => n.length).length} model name(s) from ${files.length} file(s).`.green);
     }
 }
 
