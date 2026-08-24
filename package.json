@@ -1,6 +1,6 @@
 {
   "name": "mmVehiclesMetaMerger",
-  "version": "2.0.3",
+  "version": "2.1.0",
   "description": "Tool made to easily merge multiple GTA5 vehicle meta files, with a desktop interface.",
   "main": "src/main.js",
   "scripts": {

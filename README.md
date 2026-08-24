@@ -58,6 +58,31 @@ The old options 13, 14 and 15 shifted up to 14, 15 and 16.
 | 7 | Import all vehicles.meta from directory | | 15 | Extract model names from vehicles.meta files |
 | 8 | Import all carcols.meta from directory | | 16 | Exit |
 
+### 3. Named output folders
+
+Every merge lands in its own folder named after the pack you pointed it at, instead of
+overwriting the same six files at the root of `output/`.
+
+```
+D:\packs\alhosn_debage\data   ->   output\alhosn_debage\
+```
+
+The name is worked out from the source path: container folders like `data`, `stream` and
+`dlc` are skipped, and a pack nested inside a folder of its own name collapses to one. The
+suggested name is editable before the run starts. Run the same pack twice and the second is
+filed as `alhosn_debage (2)` — nothing is ever overwritten.
+
+The Output panel is a scrollable list of those folders, newest first, each showing the pack
+name, the vehicle count and how long ago it ran. Click one to see the meta files inside it,
+`< back` to return. Folders can be deleted from the list.
+
+Each folder also carries a small `_run.json` recording the source path, the timestamp, the
+vehicle count and which files the run produced.
+
+**This also fixes cross-pack contamination.** The five working folders were only ever added
+to, so merging pack B straight after pack A quietly mixed A's cars into B's output. Each
+import now clears its working folder first, so a run only ever contains the pack you gave it.
+
 ---
 
 # Building
@@ -79,7 +104,7 @@ npm run cli         # the original console menu, untouched
 | `src/main.js` | Electron main process. Plumbing only — each operation calls straight into `core.js`. |
 | `src/preload.js` | The bridge between the interface and Node. |
 | `src/renderer/` | The interface. |
-| `test/verify.js` | Builds a fake resource tree and asserts the merge and the flag pass behave. |
+| `test/verify.js` | Builds a fake resource tree and asserts the merge, the flag pass and the output folders behave. |
 
 # License (custom one)
 You are allowed to edit this program, just do it as a GitHub fork. If you want to add new features, feel free to PR them.
