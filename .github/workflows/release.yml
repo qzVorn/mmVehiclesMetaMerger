@@ -7,7 +7,7 @@ on:
       tag:
         description: "Release tag, e.g. v2.0.0"
         required: true
-        default: "v2.0.0"
+        default: "v2.1.0"
   push:
     tags:
       - "v*"
@@ -69,6 +69,16 @@ jobs:
           | `...-setup.exe` | Normal installer, adds a Start Menu shortcut. |
 
           The portable build creates `vehicles_meta/`, `carcols_meta/`, `carvariations_meta/`, `handling_meta/`, `vehiclelayouts_meta/` and `output/` next to itself, exactly like the console version did.
+
+          ## New in 2.1.0: named output folders
+
+          Every merge now lands in its own folder named after the pack you pointed it at, instead of overwriting the same six files at the root of `output/`.
+
+          Point it at `D:\packs\alhosn_debage\data` and the result appears in `output\alhosn_debage\`. The name is worked out from the source path — container folders like `data`, `stream` and `dlc` are skipped, and a pack nested inside a folder of its own name collapses to one. You can edit the suggested name before the run starts. Run the same pack twice and the second is filed as `alhosn_debage (2)`; nothing is ever overwritten.
+
+          The Output panel is now a scrollable list of those folders, newest first, each showing the pack name, the vehicle count and how long ago it ran. Click one to see the meta files inside it, `‹ back` to return, and each folder can be deleted from the list.
+
+          **This also fixes cross-pack contamination.** The five working folders were only ever added to, so merging pack B straight after pack A quietly mixed A's cars into B's output. Each import now clears its working folder first, so a run only ever contains the pack you gave it.
 
           ## What is new
 
