@@ -225,12 +225,14 @@ async function main() {
     await new Promise((r) => setTimeout(r, 200));
     const names = fs.readFileSync(path.join(outDir, "exportedModelNames.txt"), "utf8").trim().split("\n");
 
-    // NOTE: this asserts the CURRENT upstream behaviour, not ideal behaviour.
-    // ExtractModelNamesVehicleMetas() only ever reads obj.Item[0], so it exports
-    // the FIRST vehicle out of each staged file and silently drops the rest.
-    // With 3 files holding 2 vehicles each that is 3 names, not 6. This is a
-    // pre-existing bug in app.js and has deliberately been left untouched.
-    check("exports one model name per staged file (upstream behaviour)", names.length === 3, names.join(", "));
+    // FIXED in 2.0.2. This used to export only the FIRST vehicle from each
+    // staged file, because ExtractModelNamesVehicleMetas() read obj.Item[0]
+    // instead of walking every Item. Three files holding two vehicles each must
+    // now yield all six names.
+    check("exports every model name, not just the first per file", names.length === 6, `got ${names.length}: ${names.join(", ")}`);
+    ["polvic", "polstang", "firetruk2", "ambulance2", "sultanrs2", "unmarked"].forEach((m) => {
+        check(`model name "${m}" exported`, names.indexOf(m) !== -1, names.join(", "));
+    });
 
     // ------------------------------------------------------------------
     // Regression tests for the 2.0.1 fix.
