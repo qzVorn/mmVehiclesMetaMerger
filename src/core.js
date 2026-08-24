@@ -1176,6 +1176,213 @@ function clearStagingFolders() {
     return removed;
 }
 
+/* =========================================================================
+ * ===================== NAMED OUTPUT FOLDERS (2.1.0) ======================
+ * Each run can drop its finished files into output/<pack name>/ instead of
+ * overwriting one shared output folder.
+ * ====================================================================== */
+
+/** Folder names that describe a container rather than the pack itself. */
+const GENERIC_FOLDER_NAMES = [
+    "data", "stream", "meta", "metas", "dlc", "dlcpacks", "dlc_pack",
+    "files", "vehicles", "vehicle", "resources", "resource", "[vehicles]"
+];
+
+/** Characters Windows will not accept in a folder name. */
+function sanitiseFolderName(name) {
+    return String(name || "")
+        .replace(/[<>:"/\\|?*\x00-\x1F]/g, "")
+        .replace(/[. ]+$/, "")
+        .trim()
+        .slice(0, 64);
+}
+
+/**
+ * Works out what to call the output folder for a source directory.
+ *
+ *   D:\labubu\194.45.197.208_30120\alhosn_debage\alhosn_debage\data
+ *                                          -> "alhosn_debage"
+ *
+ * Walks up past container folders like "data" or "stream", then collapses a
+ * repeated name (packs are often nested inside a folder of the same name).
+ */
+function deriveRunName(sourceDir) {
+    if (!sourceDir) return "unsorted";
+
+    const parts = String(sourceDir)
+        .split(/[\\/]+/)
+        .map((p) => p.trim())
+        .filter((p) => p.length && p !== "." && !/^[a-zA-Z]:$/.test(p));
+
+    let i = parts.length - 1;
+    while (i >= 0 && GENERIC_FOLDER_NAMES.indexOf(parts[i].toLowerCase()) !== -1) i--;
+
+    // Nested folders of the same name collapse to one.
+    while (i > 0 && parts[i - 1].toLowerCase() === parts[i].toLowerCase()) i--;
+
+    const picked = sanitiseFolderName(i >= 0 ? parts[i] : "");
+    return picked || "unsorted";
+}
+
+/** The files a run produces, in the order the panel shows them. */
+const OUTPUT_FILES = [
+    "vehicles.meta",
+    "carcols.meta",
+    "carvariations.meta",
+    "handling.meta",
+    "vehiclelayouts.meta",
+    "exportedModelNames.txt"
+];
+
+/** Empties one staging folder so a new import cannot inherit old files. */
+function clearStagingFolder(key) {
+    const dir = `${getDir()}/${key}_meta`;
+    let removed = 0;
+
+    try {
+        fs.readdirSync(dir).forEach((f) => {
+            if (f.toLowerCase().endsWith(".meta")) {
+                fs.unlinkSync(path.join(dir, f));
+                removed++;
+            }
+        });
+    } catch (e) { /* folder missing is fine, ensureWorkspace recreates it */ }
+
+    if (removed) console.log(`Cleared ${removed} old file(s) from ${key}_meta.`.yellow);
+    return removed;
+}
+
+/**
+ * Moves whatever the run just produced out of output/ and into
+ * output/<name>/, then records a small _run.json beside it.
+ */
+function finaliseRun(name, sourceDir) {
+    let folder = sanitiseFolderName(name) || "unsorted";
+    const root = `${getDir()}/output`;
+
+    const present = OUTPUT_FILES.filter((f) => fs.existsSync(path.join(root, f)));
+    if (!present.length) {
+        console.log("Nothing to file away - no output files were produced.".yellow);
+        return null;
+    }
+
+    // Never overwrite a previous run: alhosn_debage, alhosn_debage (2), ...
+    let target = path.join(root, folder);
+    let n = 2;
+    while (fs.existsSync(target)) {
+        target = path.join(root, `${folder} (${n})`);
+        n++;
+    }
+    folder = path.basename(target);
+    fs.mkdirSync(target, { recursive: true });
+
+    present.forEach((f) => {
+        fs.renameSync(path.join(root, f), path.join(target, f));
+    });
+
+    let vehicles = 0;
+    try {
+        const xml = fs.readFileSync(path.join(target, "vehicles.meta"), "utf8");
+        vehicles = (xml.match(/<modelName>/g) || []).length;
+    } catch (e) { /* no vehicles.meta in this run */ }
+
+    const manifest = {
+        name: folder,
+        source: sourceDir || null,
+        created: new Date().toISOString(),
+        vehicles: vehicles,
+        files: present
+    };
+
+    try {
+        fs.writeFileSync(path.join(target, "_run.json"), JSON.stringify(manifest, null, 2));
+    } catch (e) { /* the panel falls back to reading the folder directly */ }
+
+    console.log(`Saved to output/${folder}/ (${present.length} file(s), ${vehicles} vehicle(s)).`.green);
+    return manifest;
+}
+
+/** Every named run folder, newest first, plus any loose files at the root. */
+function listRuns() {
+    const root = `${getDir()}/output`;
+    let entries = [];
+
+    try {
+        entries = fs.readdirSync(root, { withFileTypes: true });
+    } catch (e) {
+        return { runs: [], unsorted: [] };
+    }
+
+    const runs = entries.filter((e) => e.isDirectory()).map((e) => {
+        const dir = path.join(root, e.name);
+        let manifest = {};
+        try {
+            manifest = JSON.parse(fs.readFileSync(path.join(dir, "_run.json"), "utf8"));
+        } catch (err) { /* folder made by hand, or an older version */ }
+
+        const files = OUTPUT_FILES.map((f) => {
+            const full = path.join(dir, f);
+            try {
+                const st = fs.statSync(full);
+                return { name: f, exists: true, size: st.size, path: full };
+            } catch (err) {
+                return { name: f, exists: false, size: 0, path: full };
+            }
+        });
+
+        let created = manifest.created || null;
+        if (!created) {
+            try { created = new Date(fs.statSync(dir).mtimeMs).toISOString(); } catch (err) { /* ignore */ }
+        }
+
+        return {
+            name: e.name,
+            path: dir,
+            source: manifest.source || null,
+            created: created,
+            vehicles: typeof manifest.vehicles === "number" ? manifest.vehicles : null,
+            files: files
+        };
+    });
+
+    runs.sort((a, b) => String(b.created || "").localeCompare(String(a.created || "")));
+
+    // Files still sitting loose in output/ (an older version, or a merge run
+    // without a source folder) are shown as one "Unsorted" entry.
+    const unsorted = OUTPUT_FILES.map((f) => {
+        const full = path.join(root, f);
+        try {
+            const st = fs.statSync(full);
+            return { name: f, exists: true, size: st.size, path: full };
+        } catch (err) {
+            return { name: f, exists: false, size: 0, path: full };
+        }
+    });
+
+    return { runs: runs, unsorted: unsorted };
+}
+
+/** Deletes one run folder and everything in it. */
+function deleteRun(name) {
+    const folder = sanitiseFolderName(name);
+    if (!folder) return false;
+
+    const target = path.join(`${getDir()}/output`, folder);
+    const root = path.resolve(`${getDir()}/output`);
+
+    // Refuse anything that would escape the output folder.
+    if (path.resolve(target) === root || path.resolve(target).indexOf(root + path.sep) !== 0) return false;
+
+    try {
+        fs.rmSync(target, { recursive: true, force: true });
+        console.log(`Deleted output/${folder}/.`.yellow);
+        return true;
+    } catch (e) {
+        console.log(`Could not delete output/${folder}/: ${e.message}`.red);
+        return false;
+    }
+}
+
 module.exports = {
     bus,
     setBaseDir,
@@ -1183,6 +1390,14 @@ module.exports = {
     ensureWorkspace,
     workspaceStats,
     clearStagingFolders,
+    clearStagingFolder,
+
+    // named output folders (2.1.0)
+    deriveRunName,
+    finaliseRun,
+    listRuns,
+    deleteRun,
+    OUTPUT_FILES,
 
     // merge procedures (1 - 6)
     VehiclesMetaProcedure,

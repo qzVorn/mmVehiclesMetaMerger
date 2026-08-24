@@ -14,6 +14,12 @@ contextBridge.exposeInMainWorld("merger", {
 
     // workspace
     stats: () => ipcRenderer.invoke("stats:read"),
+
+    // named output folders
+    listRuns: () => ipcRenderer.invoke("runs:list"),
+    deleteRun: (name) => ipcRenderer.invoke("runs:delete", name),
+    deriveName: (sourceDir) => ipcRenderer.invoke("runs:deriveName", sourceDir),
+    activeProject: () => ipcRenderer.invoke("runs:active"),
     clearStaging: () => ipcRenderer.invoke("workspace:clear"),
     appInfo: () => ipcRenderer.invoke("app:info"),
 
@@ -32,5 +38,6 @@ contextBridge.exposeInMainWorld("merger", {
     onLog: (cb) => ipcRenderer.on("engine:log", (_e, line) => cb(line)),
     onFatal: (cb) => ipcRenderer.on("engine:fatal", (_e, payload) => cb(payload)),
     onBusy: (cb) => ipcRenderer.on("engine:busy", (_e, payload) => cb(payload)),
-    onWindowState: (cb) => ipcRenderer.on("window:state", (_e, payload) => cb(payload))
+    onWindowState: (cb) => ipcRenderer.on("window:state", (_e, payload) => cb(payload)),
+    onProject: (cb) => ipcRenderer.on("engine:project", (_e, payload) => cb(payload))
 });
