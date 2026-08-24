@@ -232,6 +232,73 @@ async function main() {
     // pre-existing bug in app.js and has deliberately been left untouched.
     check("exports one model name per staged file (upstream behaviour)", names.length === 3, names.join(", "));
 
+    // ------------------------------------------------------------------
+    // Regression tests for the 2.0.1 fix.
+    //
+    // Before 2.0.1 a single bad vehicles.meta anywhere in the batch made
+    // MergeVehicleMetas throw. The throw was swallowed upstream, so
+    // output/vehicles.meta was never rewritten and the user was left looking at
+    // the previous run's file. handling.meta was unaffected because it already
+    // had the guard, which is exactly how the bug was reported.
+    // ------------------------------------------------------------------
+    console.log("\nStep 5 - one bad file must not kill the whole merge");
+
+    const GOOD = (m) => `<?xml version="1.0" encoding="UTF-8"?>
+<CVehicleModelInfo__InitDataList>
+  <residentTxd>vehshare</residentTxd>
+  <InitDatas>
+    <Item><modelName>${m}</modelName><flags>FLAG_HAS_LIVERY</flags></Item>
+  </InitDatas>
+</CVehicleModelInfo__InitDataList>`;
+
+    const BAD = {
+        "no <InitDatas> block": `<?xml version="1.0" encoding="UTF-8"?>\n<CVehicleModelInfo__InitDataList>\n  <residentTxd>vehshare</residentTxd>\n</CVehicleModelInfo__InitDataList>`,
+        "wrong root element": `<?xml version="1.0" encoding="UTF-8"?>\n<CVehicleModelInfoVarGlobal>\n  <Kits><Item><kitName>x</kitName></Item></Kits>\n</CVehicleModelInfoVarGlobal>`,
+        "invalid XML (unescaped &)": `<?xml version="1.0" encoding="UTF-8"?>\n<CVehicleModelInfo__InitDataList>\n  <InitDatas><Item><modelName>a&b</modelName></Item></InitDatas>\n</CVehicleModelInfo__InitDataList>`,
+        "empty file": ""
+    };
+
+    for (const label of Object.keys(BAD)) {
+        const ws = fs.mkdtempSync(path.join(os.tmpdir(), "mmvmm-bad-"));
+        core.setBaseDir(ws);
+        core.ensureWorkspace();
+
+        fs.writeFileSync(path.join(ws, "vehicles_meta", "vehicles0.meta"), GOOD("good_a"));
+        fs.writeFileSync(path.join(ws, "vehicles_meta", "vehicles1.meta"), BAD[label]);
+        fs.writeFileSync(path.join(ws, "vehicles_meta", "vehicles2.meta"), GOOD("good_c"));
+
+        await core.VehiclesMetaProcedure();
+        await new Promise((r) => setTimeout(r, 250));
+
+        const out = path.join(ws, "output", "vehicles.meta");
+        const written = fs.existsSync(out);
+        const count = written ? (fs.readFileSync(out, "utf8").match(/<modelName>/g) || []).length : -1;
+
+        check(`bad file "${label}" - output still written`, written, "output/vehicles.meta was not written at all");
+        check(`bad file "${label}" - both good vehicles merged`, count === 2, `expected 2 vehicles, got ${count}`);
+    }
+
+    // The first file being the bad one is the nastier case: `o` is seeded from
+    // files[0], so a bad file there used to throw before the loop even started.
+    {
+        const ws = fs.mkdtempSync(path.join(os.tmpdir(), "mmvmm-bad0-"));
+        core.setBaseDir(ws);
+        core.ensureWorkspace();
+        fs.writeFileSync(path.join(ws, "vehicles_meta", "vehicles0.meta"), BAD["wrong root element"]);
+        fs.writeFileSync(path.join(ws, "vehicles_meta", "vehicles1.meta"), GOOD("good_a"));
+        fs.writeFileSync(path.join(ws, "vehicles_meta", "vehicles2.meta"), GOOD("good_c"));
+
+        await core.VehiclesMetaProcedure();
+        await new Promise((r) => setTimeout(r, 250));
+
+        const out = path.join(ws, "output", "vehicles.meta");
+        const count = fs.existsSync(out) ? (fs.readFileSync(out, "utf8").match(/<modelName>/g) || []).length : -1;
+        check("bad file is the FIRST one - both good vehicles still merged", count === 2, `expected 2 vehicles, got ${count}`);
+    }
+
+    // Restore the main workspace for the summary below.
+    core.setBaseDir(workspace);
+
     console.log("\nMerged output/vehicles.meta flags:");
     flagBlocks.forEach((b, i) => console.log(`  ${i + 1}. ${b}`));
 
